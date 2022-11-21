@@ -64,6 +64,93 @@ contract NFTMarketolace is ERC721URIStorage{
         uint256 newTokenId = _tokenIds.current();
 
         _mint(msg.sender, newTokenId);
+        _setTokenURI(newTokenId, tokenURI);
+
+        createMarketItem(newTokenId, price);
+
+        return newTokenId;
+
+    }
+
+    //Creating market items
+
+    function createMarketItem(uint256 tokenId, uint256 price) private {
+        require(price > 0, "There must be a list price");
+        require(msg.value == listingPrice, "Price must be equal to listing price");
+
+        idMarketItem[tokenId] = MarketItem(
+            tokenId,
+            payable(msg.sender),
+            payable(address(this)),
+            price,
+            false
+        );
+
+        _transfer(msg.sender, address(this), tokenId);
+
+        emit MarketItemCreated(tokenId, msg.sender, address(this), price, false);
+
+    }
+
+    //Resale token
+    function reSellToken(uint256 tokenId, uint256 price) public payable {
+        require(idMarketItem[tokenId].owner == msg.sender, "Only item owner can sell");
+        require(msg.value == listingPrice, "Price must be equal to listing price" );
+
+        idMarketItem[tokenId].sold = false;
+        idMarketItem[tokenId].price = price;
+        idMarketItem[tokenId].seller = payable(msg.sender);
+        idMarketItem[tokenId].owner = payable(address(this));
+
+        _itemsSold.decrement();
+
+        _transfer(msg.sender, address(this), tokenId);
+
+
+
+    }
+
+    //function create market sale
+
+    function createMarketSale(uint256 tokenId) public payable {
+        uint256 price = idMarketItem[tokenId].price;
+
+        require(msg.value == price, "Please sumbit the asking price in order to complete the purchase");
+
+        idMarketItem[tokenId].owner = payable(msg.sender);
+        idMarketItem[tokenId].sold = true;
+        idMarketItem[tokenId].owner = payable(address(0));
+
+        _itemsSold.increment();
+
+        _transfer(address(this), msg.sender, tokenId);
+
+        payable(owner).transfer(listingPrice);
+        payable(idMarketItem[tokenId].seller).transfer(msg.value);
+
+    }
+
+    //getting unsold nft data
+    function fetchMarketItem() public view returns(MarketItem[] memory) {
+        uint256 itemCount = _tokenIds.current();
+        uint256 unSoldItemCount = _tokenIds.current() - _itemsSold.current();
+        uint256 currentIndex = 0;
+
+        MarketItem[] memory items = new MarketItem[](unSoldItemCount);
+        for (uint256 i=0; i< itemCount; i++) {
+            if(idMarketItem[i+1].owner == address(this)) {
+                uint256 currentId = i + 1;
+
+                MarketItem storage currentItem = idMarketItem[currentId];
+                items[currentIndex] = currentItem;
+                currentIndex += 1;
+
+
+            }
+
+            return items;
+        }
+
     }
 
 
